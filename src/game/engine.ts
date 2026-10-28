@@ -61,6 +61,15 @@ export interface Feedback {
   until: number;
 }
 
+export interface Answer {
+  eventId: string;
+  title: string;
+  selectedDate: string;
+  correctDate: string;
+  correct: boolean;
+  note?: string;
+}
+
 export interface GState {
   status: Status;
   phase: "falling" | "feedback";
@@ -96,6 +105,8 @@ export interface GState {
   dying: boolean;
   pendingLevelUp: boolean;
   newBest: boolean;
+  answers: Answer[];
+  endReason: "limit" | "finished" | null;
 }
 
 const BEST_KEY = "chrono-blocks-best";
@@ -165,6 +176,8 @@ export class Game {
       dying: false,
       pendingLevelUp: false,
       newBest: false,
+      answers: [],
+      endReason: null,
     };
   }
 
@@ -182,12 +195,25 @@ export class Game {
 
   togglePause() {
     const s = this.s;
-    if (s.status === "playing") s.status = "paused";
+    if (s.status === "playing") this.pause();
     else if (s.status === "paused") s.status = "playing";
   }
 
   pause() {
+    this.s.soft = false;
     if (this.s.status === "playing") this.s.status = "paused";
+  }
+
+  finish() {
+    if (this.s.status !== "playing" && this.s.status !== "paused") return;
+    this.s.endReason = "finished";
+    this.gameOver();
+  }
+
+  toMenu() {
+    const best = this.s.best;
+    this.reset();
+    this.s.best = best;
   }
 
   // ---------- cards ----------
@@ -395,6 +421,14 @@ export class Game {
     const ok = s.lane === card.correct;
     const cx = s.lane * LANE_W + LANE_W / 2;
     s.totalAnswered++;
+    s.answers.push({
+      eventId: card.ev.id,
+      title: card.ev.t,
+      selectedDate: card.options[s.lane],
+      correctDate: card.ev.date,
+      correct: ok,
+      note: card.ev.note,
+    });
     s.hard = false;
 
     if (ok) {
@@ -462,6 +496,8 @@ export class Game {
 
   private gameOver() {
     const s = this.s;
+    s.endReason ??= "limit";
+    s.soft = false;
     s.status = "over";
     if (s.score > s.best) {
       s.best = s.score;

@@ -25,10 +25,15 @@ export function useGame() {
     const onKeyDown = (e: KeyboardEvent) => {
       const k = e.key;
       const st = g.s.status;
-      if (["ArrowLeft", "ArrowRight", "ArrowDown", "ArrowUp", " "].includes(k)) e.preventDefault();
-      if (st === "menu" || st === "over") {
+      if ((k === " " || k === "Enter") && (e.target as HTMLElement | null)?.closest("button, a, input, textarea, select")) return;
+      if (st === "playing" && ["ArrowLeft", "ArrowRight", "ArrowDown", "ArrowUp", " "].includes(k)) e.preventDefault();
+      // Results are a scrollable review: Space must scroll instead of restarting.
+      if (st === "over") return;
+      if (st === "menu") {
         if (k === "Enter" || k === " ") {
+          e.preventDefault();
           g.start();
+          window.scrollTo(0, 0);
           force();
         }
         return;
