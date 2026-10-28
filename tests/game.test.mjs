@@ -123,3 +123,36 @@ test('empty finished game and restarted game have consistent counts', () => {
   assert.equal(game.s.totalAnswered, 0);
   assert.equal(game.s.endReason, null);
 });
+
+test('all event blocks reserve native text space and land above a tall stack', () => {
+  for (const [width, height] of [[283, 270], [366, 474], [480, 514], [480, 320], [400, 220]]) {
+    const game = new Game(); game.start(); game.resizeBoard(width, height);
+    for (const ev of EVENTS) {
+      game.s.card = { ...game.s.card, ev };
+      game.s.stacks[2] = Array.from({ length: MAX_STACK - 2 }, (_, id) => ({ id, cs: [0, 1] }));
+      const layout = game.cardLayout();
+      assert.ok(layout.fontSize >= 15);
+      assert.ok(layout.height * height / PLAY_H >= 80);
+      assert.ok(layout.width < 400);
+      assert.ok(game.landY(2) >= 0, ev.t);
+      assert.equal(game.landY(2) + layout.height + (MAX_STACK - 2) * CELL, PLAY_H);
+    }
+  }
+});
+
+test('rotation preserves drop progress, collision size and unanswered state', () => {
+  const game = new Game(); game.start();
+  game.s.card = { ...game.s.card, ev: EVENTS.reduce((a, b) => a.t.length > b.t.length ? a : b) };
+  game.s.y = game.landY(2) * .65;
+  game.resizeBoard(296, 280);
+  assert.ok(Math.abs(game.s.y / game.landY(2) - .65) < 1e-9);
+  assert.equal(game.s.totalAnswered, 0);
+  assert.equal(game.s.phase, 'falling');
+  const landing = game.landY(2);
+  game.resizeBoard(0, 0);
+  assert.equal(game.landY(2), landing);
+  answer(game);
+  assert.equal(game.s.totalCorrect, 1);
+  assert.ok(game.s.particles.length >= 12);
+  assert.equal(game.s.y, game.landY(2));
+});

@@ -1,17 +1,21 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { BOARD_W, PLAY_H, MAX_STACK, LANE_W, cardLayout, type GState, type Game } from "../game/engine";
+import { BOARD_W, PLAY_H, MAX_STACK, LANE_W, eventColor, type GState, type Game } from "../game/engine";
 
 export function GameBoard({ state: s, game: g, onChange }: { state: GState; game: Game; onChange: () => void }) {
   const fieldRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState({ x: 1, y: 1 });
   useLayoutEffect(() => {
     const field = fieldRef.current!;
-    const observer = new ResizeObserver(([entry]) => setScale({ x: entry.contentRect.width / BOARD_W, y: entry.contentRect.height / PLAY_H }));
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      g.resizeBoard(width, height);
+      setScale({ x: width / BOARD_W, y: height / PLAY_H });
+    });
     observer.observe(field);
     return () => observer.disconnect();
-  }, []);
+  }, [g]);
   const card = s.card;
-  const layout = cardLayout(card?.ev.t ?? "");
+  const layout = g.cardLayout();
   const cardLeft = Math.max(0, Math.min(BOARD_W - layout.width, s.lane * LANE_W + LANE_W / 2 - layout.width / 2));
   const fb = s.feedback;
   const chooseLane = (lane: number) => { g.goToLane(lane); onChange(); };
@@ -30,18 +34,18 @@ export function GameBoard({ state: s, game: g, onChange }: { state: GState; game
             <div key={block.id} className="brow" style={{ left: lane * LANE_W, bottom: row * 40 }}><div className={"blk c" + block.cs[0]} /><div className={"blk c" + block.cs[1]} /></div>
           )))}
           {s.particles.map(p => <div key={p.id} className={"prt blk c" + p.c} style={{ left: p.x, bottom: p.y, "--dx": `${p.dx}px`, "--dy": `${p.dy}px`, "--rot": `${p.rot}deg` } as CSSProperties} />)}
-          {card && s.phase === "falling" && <div className="ghost" style={{ left: s.lane * LANE_W, top: g.landY(s.lane), height: layout.height }} />}
           {s.floats.map(f => <div key={f.id} className="floatTxt" style={{ left: f.x, top: f.y, color: f.color }}>{f.text}</div>)}
           {s.now < s.flashUntil && <div className="flash" />}
         </div>
-        {card && <div key={`${s.totalAnswered}-${card.ev.id}`} className={"ecard" + (card.gold ? " gold" : "") + (fb ? fb.ok ? " ok" : " bad" : "") + (s.hard ? " hard" : "")} style={{ left: `${cardLeft / BOARD_W * 100}%`, top: `${s.y / PLAY_H * 100}%`, width: `${layout.width / BOARD_W * 100}%`, height: `${layout.height / PLAY_H * 100}%`, fontSize: 14, pointerEvents: "none" }}>
+        {card && s.phase === "falling" && <div className="ghost" aria-hidden="true" style={{ left: `${cardLeft / BOARD_W * 100}%`, top: `${g.landY(s.lane) / PLAY_H * 100}%`, width: `${layout.width / BOARD_W * 100}%`, height: `${layout.height / PLAY_H * 100}%` }} />}
+        {card && <div key={card.ev.id} className={"ecard block-tone-" + eventColor(card.ev.id) + (card.gold ? " gold" : "") + (fb ? fb.ok ? " ok" : " bad" : "") + (s.hard ? " hard" : "")} style={{ left: `${cardLeft / BOARD_W * 100}%`, top: `${s.y / PLAY_H * 100}%`, width: `${layout.width / BOARD_W * 100}%`, height: `${layout.height / PLAY_H * 100}%`, fontSize: layout.fontSize, pointerEvents: "none" }}>
+          <div className="event-tiles" aria-hidden="true">{[0, 1, 2, 3].map(i => <i key={i} />)}</div>
           {card.gold && <span className="star">✦</span>}
           <span className="falling-title">{card.ev.t}</span>
-          <span className="falling-mobile">СОБЫТИЕ {s.totalAnswered + (s.phase === "feedback" ? 0 : 1)}{card.gold ? " ★" : ""}</span>
           <div className="notch" style={{ left: `${(s.lane * LANE_W + LANE_W / 2 - cardLeft) / layout.width * 100}%` }} />
         </div>}
         {fb && <div className={"toast " + (fb.ok ? "ok" : "bad")} role="status" key={s.totalAnswered}>
-          <strong>{fb.title}</strong><span>{fb.text}</span><b>{fb.date} {/^\d+$/.test(fb.date) ? "г." : "гг."}</b>
+          <strong>{fb.ok ? "✓ " : "× "}{fb.title}</strong><span>{fb.text}</span><b>{fb.date} {/^\d+$/.test(fb.date) ? "г." : "гг."}</b>
         </div>}
         {s.now < s.bannerUntil && <div className="level-banner"><strong>Уровень {s.level}</strong><span>{s.level === 1 ? "Выбери верную дату" : "Скорость растёт"}</span></div>}
       </div>

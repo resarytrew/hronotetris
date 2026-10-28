@@ -13,11 +13,25 @@ export const MAX_STACK = 12;
 export const LEVEL_STEP = 6;
 export const COLORS = 7;
 
-export function cardLayout(title: string) {
-  if (title.length > 160) return { width: 304, height: 152, fontSize: 14 };
-  if (title.length > 90) return { width: 284, height: 128, fontSize: 14 };
-  if (title.length > 50) return { width: 244, height: 100, fontSize: 14 };
-  return { width: CARD_W, height: CARD_H, fontSize: title.length <= 24 ? 16 : title.length <= 34 ? 14 : 13 };
+export function cardLayout(title: string, fieldWidth = BOARD_W, fieldHeight = PLAY_H) {
+  const width = title.length > 34 ? 320 : 248;
+  const fontSize = 15;
+  // Reserve a generous glyph width and wrap at word boundaries. Text stays at
+  // native size; only the resulting box is converted into physics coordinates.
+  const capacity = Math.max(1, Math.floor((width * fieldWidth / BOARD_W - 28) / (fontSize * .64)));
+  let lines = 1, used = 0;
+  for (const word of title.split(/\s+/)) {
+    if (used && used + 1 + word.length > capacity) { lines++; used = 0; }
+    if (used) used++;
+    lines += Math.floor((word.length - 1) / capacity);
+    used += (word.length - 1) % capacity + 1;
+  }
+  const height = Math.ceil(Math.max(80, lines * 20 + 36) * PLAY_H / fieldHeight);
+  return { width, height, fontSize };
+}
+
+export function eventColor(id: string) {
+  return [...id].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) >>> 0, 0) % COLORS;
 }
 
 export type BonusType = "slow" | "hint" | "bomb";
@@ -133,6 +147,7 @@ export class Game {
   private bag: HistEvent[] = [];
   private uid = 1;
   private spawned = 0;
+  private fieldSize = { width: BOARD_W, height: PLAY_H };
 
   constructor() {
     this.reset();
@@ -262,8 +277,21 @@ export class Game {
   }
 
   // ---------- helpers ----------
+  cardLayout() {
+    return cardLayout(this.s.card?.ev.t ?? "", this.fieldSize.width, this.fieldSize.height);
+  }
+
+  resizeBoard(width: number, height: number) {
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return;
+    const oldLanding = this.landY(this.s.lane);
+    const progress = oldLanding > 0 ? this.s.y / oldLanding : 0;
+    this.fieldSize = { width, height };
+    // Rotation/resizing must not submit an answer or push the card into a stack.
+    this.s.y = Math.max(0, Math.min(1, progress)) * Math.max(0, this.landY(this.s.lane));
+  }
+
   landY(lane: number) {
-    const height = this.s.card ? cardLayout(this.s.card.ev.t).height : CARD_H;
+    const height = this.cardLayout().height;
     return PLAY_H - this.s.stacks[lane].length * CELL - height;
   }
 
@@ -330,7 +358,7 @@ export class Game {
     const nl = Math.max(0, Math.min(LANES - 1, s.lane + dir));
     if (nl === s.lane) return;
     const top = PLAY_H - s.stacks[nl].length * CELL;
-    const height = s.card ? cardLayout(s.card.ev.t).height : CARD_H;
+    const height = this.cardLayout().height;
     if (s.y + height > top - 2) {
       s.blockedUntil = s.now + 300;
       sfx.blocked();
@@ -432,6 +460,13 @@ export class Game {
     s.hard = false;
 
     if (ok) {
+      // Celebrate every correct answer, including an empty board.
+      for (let i = 0; i < 12; i++) s.particles.push({
+        id: this.rid(), x: cx - CELL / 2, y: PLAY_H - s.y - this.cardLayout().height / 2,
+        c: (eventColor(card.ev.id) + i) % COLORS,
+        dx: (Math.random() - .5) * 240, dy: -(40 + Math.random() * 180),
+        rot: (Math.random() - .5) * 300, until: s.now + 750,
+      });
       s.combo++;
       s.maxCombo = Math.max(s.maxCombo, s.combo);
       s.mult = Math.min(5, 1 + Math.floor(s.combo / 3));

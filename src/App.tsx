@@ -1,5 +1,4 @@
-import { useState } from "react";
-import bg from "./assets/bg.jpg";
+import { useState, type CSSProperties } from "react";
 import { useGame } from "./game/useGame";
 import { LEVEL_STEP, type BonusType } from "./game/engine";
 import { EVENTS } from "./data/events";
@@ -9,6 +8,7 @@ import { GameLogo } from "./components/GameLogo";
 import { GameBoard } from "./components/GameBoard";
 import { GameResults } from "./components/GameResults";
 import "./responsive.css";
+import "./arcade.css";
 
 const bonusInfo = {
   slow: { label: "Замедлить", key: "1", tone: "mint", Icon: SlowIcon },
@@ -26,15 +26,14 @@ export default function App() {
 
   return (
     <main className="app-shell">
-      <div className="backdrop" style={{ backgroundImage: `url(${bg})` }} />
-      <div className="sweep" />
+      <div className="backdrop" aria-hidden="true">{Array.from({ length: 6 }, (_, i) => <div className={`backdrop-piece piece-${i}`} key={i}>{Array.from({ length: 4 }, (_, j) => <i key={j} />)}</div>)}</div>
       {s.status === "menu" ? (
         <section className="menu-screen" aria-label="Главное меню">
           <GameLogo />
           <p className="menu-tagline">Исторические даты в ритме аркады</p>
           <div className="menu-chips"><span>История России</span><span>862–1801</span><span>{EVENTS.length} событий</span></div>
           <div className="menu-example" aria-hidden="true">
-            <div className="example-card">Крещение Руси</div><span className="example-arrow">↓</span>
+            <div className="example-card block-tone-0"><div className="event-tiles" aria-hidden="true">{[0, 1, 2, 3].map(i => <i key={i} />)}</div><span>Крещение Руси</span></div><span className="example-arrow">↓</span>
             <div className="example-dates">{[986, 987, 988, 989, 990].map(year => <span className={year === 988 ? "example-correct" : ""} key={year}>{year}</span>)}</div>
           </div>
           <ol className="menu-rules">
@@ -52,8 +51,8 @@ export default function App() {
         <>
           <div className="game-shell" inert={s.status === "paused"}>
             <header className="game-topbar">
-              <div className="game-brand">ХРОНО<span>ТЕТРИС</span></div>
-              <div className="score-summary"><span>очки</span><strong>{s.score.toLocaleString("ru-RU")}</strong></div>
+              <div className="game-brand" aria-label="Хроно тетрис">{["ХРОНО", "ТЕТРИС"].map(row => <span key={row}>{[...row].map((letter, i) => <b key={i} style={{ "--letter-color": ["#d76212", "#21852d", "#8440ca", "#d32b53", "#a86d00", "#1479b0"][i] } as CSSProperties}>{letter}</b>)}</span>)}</div>
+              <div className="score-summary"><span>очки</span><strong key={s.score}>{s.score.toLocaleString("ru-RU")}</strong></div>
               <div className="topbar-actions">
                 <button className="hud-btn" aria-label={muted ? "Включить звук" : "Выключить звук"} onClick={() => { setMuted(!muted); setMutedState(!muted); }}><SoundIcon off={muted} /></button>
                 <button className="hud-btn" aria-label="Пауза" onClick={() => act(() => g.pause())}><PauseIcon /></button>
@@ -77,8 +76,7 @@ export default function App() {
               </aside>
               <section className="arena-column" aria-label="Текущая карточка">
                 <div className={"current-question" + (s.card?.gold ? " question-gold" : "")}>
-                  <div className="question-caption"><span>Событие {s.totalAnswered + (s.phase === "feedback" ? 0 : 1)}</span>{s.card?.gold && <span>★ Золотая карточка · ×2</span>}</div>
-                  <h1>{s.card?.ev.t}</h1>
+                  <div className="question-caption"><span>Событие {s.totalAnswered + (s.phase === "feedback" ? 0 : 1)}</span><span>{s.card?.gold ? "★ Золотой блок · ×2" : "Выбери верную дату ↓"}</span></div>
                 </div>
                 <GameBoard state={s} game={g} onChange={force} />
                 <div className="level-progress"><div className="progress" role="progressbar" aria-label="До следующего уровня" aria-valuenow={s.progress} aria-valuemin={0} aria-valuemax={LEVEL_STEP}><div style={{ width: `${s.progress / LEVEL_STEP * 100}%` }} /></div><span>{s.progress}/{LEVEL_STEP} до уровня {s.level + 1}</span></div>
